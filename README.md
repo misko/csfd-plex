@@ -1,4 +1,4 @@
 csfd-plex
 =========
 
-A plex metadata agent for CSFD
+A plex metadata agent for CSFD test
