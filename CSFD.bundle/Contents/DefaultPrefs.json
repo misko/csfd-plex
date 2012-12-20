@@ -1,20 +1,2 @@
 [
-  {
-    "id":"title",
-    "label":"Lade Filmtitel von Moviepilot",
-    "type":"bool",
-    "default":"true"
-  },
-  {
-    "id":"summary",
-    "label":"Lade Zusammenfassung von Moviepilot",
-    "type":"bool",
-    "default":"true"
-  },
-  {
-    "id":"poster",
-    "label":"Lade Filmplakat von Moviepilot",
-    "type":"bool",
-    "default":"true"
-  }
 ]
