@@ -52,7 +52,7 @@ class CSFDAgent(Agent.Movies):
                     candidate_name = String.StripDiacritics(link.string)
                     yearx = top_result.p.string[-4:]
                     #score = score_strs(name, lookup_name)
-                    score = -Util.LevenshteinDistance(norm_name, candidate_name)
+                    score = -Util.LevenshteinDistance(norm_name, candidate_name)/len(norm_name)
                     if year != None and yearx.find(year) >= 0:
                         score += 0.5
                     score += 0.001 * n
@@ -78,7 +78,7 @@ class CSFDAgent(Agent.Movies):
                             yearx = yearx[:-1]
                         if yearx[0] == '(':
                             yearx = yearx[1:]
-                    score = -Util.LevenshteinDistance(norm_name, candidate_name)
+                    score = -Util.LevenshteinDistance(norm_name, candidate_name)/len(norm_name)
                     if year != None and yearx.find(year) >= 0:
                         score += 0.5
                     score += 0.001 * n
@@ -302,8 +302,11 @@ class CSFDAgent(Agent.Movies):
         d = self.name_to_url(media.name)
         if d != None:
             print d
-            results.Append(MetadataSearchResult(id=d['csfdid'], name=d['name'], year=d['year'], score=90,
-                lang=Locale.Language.English))
+            if -d['score']<0.1:
+                results.Append(MetadataSearchResult(id=d['csfdid'], name=d['name'], year=d['year'], score=90,
+                    lang=Locale.Language.English))
+            else:
+                print "->skipping"
         return
 
 
@@ -336,7 +339,7 @@ def fix_title(s):
         'AC3', 'ac3', 'DVDRiP', 'dvd', 'dvdrip', 'xvid', 'divx', 'REPACK', 'RECUT', 'EXTENDED', 'Limited', 'RETAIL',
         'RETAiL', 'screener', 'r5', 'proper', 'nfo', 'ws', '1080p', '720p', 'hdtv', 'avi', 'AVI', 'Avi', 'mkv', 'MKV',
         'Mkv')
-    removes = ('Disney', 'Disneys', 'Platinum', 'Edition', 'iTALiAN', 'REMASTERED')
+    removes = ('Disney', 'Disneys', 'Platinum', 'Edition', 'iTALiAN', 'REMASTERED','cast','Cast')
     output = []
     for tok in s:
         m_stop = None
