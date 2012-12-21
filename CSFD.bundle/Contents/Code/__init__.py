@@ -110,7 +110,7 @@ class CSFDAgent(Agent.Movies):
         #norm_name, year = fix_title(String.StripDiacritics(name))
         search_url = ""
         print csfdid[5:]
-        conn.request("GET", "/film/" + csfdid[5:], {}, {'Referer': "http://www.csfd.cz" + search_url})
+        conn.request("GET", "/film/" + csfdid[5:], None, {'Referer': "http://www.csfd.cz" + search_url})
         r1 = conn.getresponse()
         data1 = r1.read()
         soup = BeautifulSoup.BeautifulSoup(data1)
@@ -231,7 +231,7 @@ class CSFDAgent(Agent.Movies):
             else:
                 photos_link = photos.a.get('href')
                 #lets get this page
-                conn.request("GET", photos_link, {}, {'Referer': search_url})
+                conn.request("GET", photos_link, None, {'Referer': search_url})
                 r2 = conn.getresponse()
                 data2 = r2.read()
                 soup2 = BeautifulSoup.BeautifulSoup(data2)
