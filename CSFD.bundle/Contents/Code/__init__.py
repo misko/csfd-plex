@@ -28,15 +28,26 @@ class CSFDAgent(Agent.Movies):
         string = string.strip('_')
         return string.strip().lower()
 
-    def name_to_url(self, name):
-        norm_name, year = fix_title(String.StripDiacritics(name))
-        search_url = "/hledat/?q=" + String.Quote(norm_name)
+    def name_to_url(self, search_name, original_name=None, depth=0):
+        if original_name==None:
+            original_name=search_name
+        norm_name, year = fix_title(String.StripDiacritics(search_name))
+        #lets remove the sequel number from the norm_name
+        search_name_x = norm_name.split()
+        search_name = ""
+        for k in search_name_x:
+            if k in ("1", "2", "3", "4", "5", "6", "7", "8", "9"):
+                pass
+            else:
+                search_name += " "+k
+        search_url = "/hledat/?q=" + String.Quote(search_name)
         conn = httplib.HTTPConnection("www.csfd.cz")
         conn.request("GET", search_url)
         r1 = conn.getresponse()
         #lets try to figure out what the result is
         data1 = r1.read()
         local_results = []
+
 
         if r1.status not in (301, 302):
             soup = BeautifulSoup.BeautifulSoup(data1)
@@ -52,7 +63,7 @@ class CSFDAgent(Agent.Movies):
                     candidate_name = String.StripDiacritics(link.string)
                     yearx = top_result.p.string[-4:]
                     #score = score_strs(name, lookup_name)
-                    score = -Util.LevenshteinDistance(norm_name, candidate_name)/len(norm_name)
+                    score = -Util.LevenshteinDistance(original_name, candidate_name) / float(len(candidate_name))
                     if year != None and yearx.find(year) >= 0:
                         score += 0.5
                     score += 0.001 * n
@@ -61,7 +72,7 @@ class CSFDAgent(Agent.Movies):
                     local_results.append(
                         [score,
                          {'search_url': search_url, 'score': score, 'candidate_name': candidate_name, 'link': path,
-                          'year': yearx}])
+                          'year': yearx, 'dist': Util.LevenshteinDistance(norm_name, candidate_name)}])
             other_results_soup = search_films.find("ul", {'class': "films others"})
             #print other_results_soup
             if other_results_soup != None:
@@ -78,7 +89,7 @@ class CSFDAgent(Agent.Movies):
                             yearx = yearx[:-1]
                         if yearx[0] == '(':
                             yearx = yearx[1:]
-                    score = -Util.LevenshteinDistance(norm_name, candidate_name)/len(norm_name)
+                    score = -Util.LevenshteinDistance(original_name, candidate_name) / float(len(candidate_name))
                     if year != None and yearx.find(year) >= 0:
                         score += 0.5
                     score += 0.001 * n
@@ -86,19 +97,49 @@ class CSFDAgent(Agent.Movies):
                         n = n - 1
                     local_results.append(
                         [score, {'search_url': search_url, 'candidate_name': candidate_name, 'link': path,
-                                 'year': yearx}])
+                                 'year': yearx, 'dist': Util.LevenshteinDistance(norm_name, candidate_name)}])
                     #print top_results_soup
             local_results.sort(reverse=True)
-
+            #print local_results
             if len(local_results) == 0:
                 Log("Failed to find any results for " + norm_name)
                 return None
-            local_result = local_results[0][1]
+        elif depth==0:
+            url=r1.getheader('location', '').replace('http://www.csfd.cz', '')
+            conn.request("GET", url)
+            r1 = conn.getresponse()
+            #lets try to figure out what the result is
+            data1 = r1.read()
+            soup = BeautifulSoup.BeautifulSoup(data1)
+            #lets try to get the name
+            try:
+                profile = soup.find('div', {'id': 'profile'})
+                info = profile.find('div', {'class': 'info'})
+                new_name = String.StripDiacritics(info.h1.text).strip()
+                new_result = self.name_to_url(new_name + " " + original_name, original_name=original_name, depth=1)
+                if new_result != None:
+                    local_results.append([new_result['score'], new_result])
+            except:
+                print "Failed to parse title"
         else:
-            local_result = {'search_url': search_url, 'score': 1, 'candidate_name': norm_name,
-                            'link': r1.getheader('location', '').replace('http://www.csfd.cz', ''), 'year': year}
-        m=re.match(re_csfdid, local_result['link'])
-        if m!=None:
+            return None
+
+        #lets ask google
+        #search_url = "/search?q=" + String.Quote(norm_name)
+        #conn = httplib.HTTPConnection("www.google.com")
+        #conn.request("GET", search_url)
+        #r1 = conn.getresponse()
+        #lets try to figure out what the result is
+        #data1 = r1.read()
+        #if r1.status not in (301, 302):
+        #    #skip
+        #    pass
+
+        local_results.sort(reverse=True)
+        #print local_results
+        local_result = local_results[0][1]
+        m = re.match(re_csfdid, local_result['link'])
+        if m != None:
             local_result['csfdid'] = "csfd:" + m.group(1)
         else:
             local_result['csfdid'] = "csfd:-1"
@@ -116,7 +157,7 @@ class CSFDAgent(Agent.Movies):
         soup = BeautifulSoup.BeautifulSoup(data1)
         if soup.h1.text.lower() == "redirect":
             l = soup.p.a['href'].replace('http://www.csfd.cz', '')
-            conn.request("GET", l, {}, {'Referer': search_url})
+            conn.request("GET", l, None, {'Referer': search_url})
             r1 = conn.getresponse()
             data1 = r1.read()
             soup = BeautifulSoup.BeautifulSoup(data1)
@@ -129,7 +170,7 @@ class CSFDAgent(Agent.Movies):
         try:
             profile = soup.find('div', {'id': 'profile'})
             info = profile.find('div', {'class': 'info'})
-            result['title'] = String.StripDiacritics(info.h1.string).strip()
+            result['title'] = String.StripDiacritics(info.h1.text).strip()
         except:
             print "Failed to parse title"
 
@@ -258,28 +299,28 @@ class CSFDAgent(Agent.Movies):
 
     def update(self, metadata, media, lang):
         movie_info = self.get_movie_info(metadata.id)
-        if movie_info!=None:
+        if movie_info != None:
             print movie_info
             proxy = Proxy.Preview
             if 'title' in movie_info:
-                metadata.title=movie_info['title']
+                metadata.title = movie_info['title']
             if 'year' in movie_info:
-                metadata.year=int(movie_info['year'])
+                metadata.year = int(movie_info['year'])
             if 'rating' in movie_info:
-                metadata.rating=float(movie_info['rating'])
+                metadata.rating = float(movie_info['rating'])
             if 'summary' in movie_info:
-                metadata.summary=movie_info['summary']
+                metadata.summary = movie_info['summary']
             if 'genres' in movie_info:
                 metadata.genres.clear()
                 for genre in movie_info['genres']:
                     metadata.genres.add(genre)
             if 'duration' in movie_info:
-                metadata.duration=int(movie_info['duration'])*60*1000
+                metadata.duration = int(movie_info['duration']) * 60 * 1000
             if 'actors' in movie_info:
                 metadata.roles.clear()
                 for actor in movie_info['actors']:
-                    role=metadata.roles.new()
-                    role.actor=actor
+                    role = metadata.roles.new()
+                    role.actor = actor
             if 'directors' in movie_info:
                 metadata.directors.clear()
                 for director in movie_info['directors']:
@@ -289,20 +330,20 @@ class CSFDAgent(Agent.Movies):
             if 'artwork' in movie_info:
                 for url in movie_info['artwork']:
                     art = HTTP.Request(url)
-                    metadata.art[url] = proxy(art, sort_order = 1)
+                    metadata.art[url] = proxy(art, sort_order=1)
                     print "added artwork " + url
             if 'poster' in movie_info:
-                url=movie_info['poster']
+                url = movie_info['poster']
                 print "Added poster " + url
-                art=HTTP.Request(url)
-                metadata.posters[url]=proxy(art,sort_order=1)
+                art = HTTP.Request(url)
+                metadata.posters[url] = proxy(art, sort_order=1)
 
     def search(self, results, media, lang, manual=False):
         print "Calling search"
         d = self.name_to_url(media.name)
         if d != None:
             print d
-            if -d['score']<0.1:
+            if -d['score'] < 0.3:
                 results.Append(MetadataSearchResult(id=d['csfdid'], name=d['name'], year=d['year'], score=90,
                     lang=Locale.Language.English))
             else:
@@ -339,7 +380,8 @@ def fix_title(s):
         'AC3', 'ac3', 'DVDRiP', 'dvd', 'dvdrip', 'xvid', 'divx', 'REPACK', 'RECUT', 'EXTENDED', 'Limited', 'RETAIL',
         'RETAiL', 'screener', 'r5', 'proper', 'nfo', 'ws', '1080p', '720p', 'hdtv', 'avi', 'AVI', 'Avi', 'mkv', 'MKV',
         'Mkv')
-    removes = ('Disney', 'Disneys', 'Platinum', 'Edition', 'iTALiAN', 'REMASTERED','cast','Cast')
+    removes = (
+    'Disney', 'Disneys', 'Platinum', 'Edition', 'iTALiAN', 'REMASTERED', 'cast', 'Cast', 'kinobox', 'Kinobox')
     output = []
     for tok in s:
         m_stop = None
@@ -357,8 +399,13 @@ def fix_title(s):
                 output += [tok]
         else:
             break
+    title = ""
     if year == None:
-        return  " ".join(output).strip(), year
+        title = " ".join(output).strip()
     else:
-        return " ".join(output).replace(year, '').strip(), year
-
+        title = " ".join(output).replace(year, '').strip()
+    title = title.lower()
+    title.replace('iii', '3')
+    title.replace('ii', '2')
+    title.replace('iv', '4')
+    return title, year
