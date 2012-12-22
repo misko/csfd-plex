@@ -29,9 +29,10 @@ class CSFDAgent(Agent.Movies):
         return string.strip().lower()
 
     def name_to_url(self, search_name, original_name=None, depth=0):
-        if original_name==None:
-            original_name=search_name
         norm_name, year = fix_title(String.StripDiacritics(search_name))
+        if original_name==None:
+            original_name=norm_name
+        print norm_name ,year
         #lets remove the sequel number from the norm_name
         search_name_x = norm_name.split()
         search_name = ""
@@ -40,89 +41,116 @@ class CSFDAgent(Agent.Movies):
                 pass
             else:
                 search_name += " "+k
-        search_url = "/hledat/?q=" + String.Quote(search_name)
-        conn = httplib.HTTPConnection("www.csfd.cz")
-        conn.request("GET", search_url)
-        r1 = conn.getresponse()
+        search_url = "http://www.csfd.cz/hledat/?q=" + String.Quote(search_name)
+        try:
+            data=HTTP.Request(search_url)
+            print data.headers
+            #data.headers
+        except Exception, e:
+            print data.headers
+            if e.code  in (301,302) and depth==0:
+                url=r1.getheader('location', '').replace('http://www.csfd.cz', '')
+                conn.request("GET", url)
+                r1 = conn.getresponse()
+                #lets try to figure out what the result is
+                data1 = r1.read()
+                soup = BeautifulSoup.BeautifulSoup(data1)
+                #lets try to get the name
+                try:
+                    profile = soup.find('div', {'id': 'profile'})
+                    info = profile.find('div', {'class': 'info'})
+                    new_name = String.StripDiacritics(info.h1.text).strip()
+                    new_result = self.name_to_url(new_name + " " + original_name, original_name=original_name, depth=1)
+                    if new_result != None:
+                        local_results.append([new_result['score'], new_result])
+                except:
+                    print "Failed to parse title"
+
+        h=HTML.ElementFromString(data)
+
         #lets try to figure out what the result is
-        data1 = r1.read()
         local_results = []
 
 
-        if r1.status not in (301, 302):
-            soup = BeautifulSoup.BeautifulSoup(data1)
-            search_films = soup.find(id="search-films")
-            n = 3
-            top_results_soup = search_films.find("ul", {'class': "ui-image-list js-odd-even"})
-            if top_results_soup != None:
-                top_results = top_results_soup.findAll('li')
-                for top_result in top_results:
-                    #link to title
-                    link = top_result.h3.a
-                    path = link.get('href')
-                    candidate_name = String.StripDiacritics(link.string)
-                    yearx = top_result.p.string[-4:]
-                    #score = score_strs(name, lookup_name)
-                    score = -Util.LevenshteinDistance(original_name, candidate_name) / float(len(candidate_name))
-                    if year != None and yearx.find(year) >= 0:
-                        score += 0.5
-                    score += 0.001 * n
-                    if n > 0:
-                        n = n - 1
-                    local_results.append(
-                        [score,
-                         {'search_url': search_url, 'score': score, 'candidate_name': candidate_name, 'link': path,
-                          'year': yearx, 'dist': Util.LevenshteinDistance(norm_name, candidate_name)}])
-            other_results_soup = search_films.find("ul", {'class': "films others"})
-            #print other_results_soup
-            if other_results_soup != None:
-                other_results = other_results_soup.findAll('li')
-                for result in other_results:
-                    link = result.a
-                    path = link.get('href')
-                    candiate_name = String.StripDiacritics(link.string)
-                    yearx_r = result.find("span", {"class": "film-year"})
-                    yearx = "-1"
-                    if year != None and yearx_r != None:
-                        yearx = yearx_r.string
-                        if yearx[-1] == ')':
-                            yearx = yearx[:-1]
-                        if yearx[0] == '(':
-                            yearx = yearx[1:]
-                    score = -Util.LevenshteinDistance(original_name, candidate_name) / float(len(candidate_name))
-                    if year != None and yearx.find(year) >= 0:
-                        score += 0.5
-                    score += 0.001 * n
-                    if n > 0:
-                        n = n - 1
-                    local_results.append(
-                        [score, {'search_url': search_url, 'candidate_name': candidate_name, 'link': path,
-                                 'year': yearx, 'dist': Util.LevenshteinDistance(norm_name, candidate_name)}])
-                    #print top_results_soup
-            local_results.sort(reverse=True)
-            #print local_results
-            if len(local_results) == 0:
-                Log("Failed to find any results for " + norm_name)
-                return None
-        elif depth==0:
-            url=r1.getheader('location', '').replace('http://www.csfd.cz', '')
-            conn.request("GET", url)
-            r1 = conn.getresponse()
-            #lets try to figure out what the result is
-            data1 = r1.read()
-            soup = BeautifulSoup.BeautifulSoup(data1)
-            #lets try to get the name
+        #try to get the name if we can then got redirected!
+        if depth==0:
             try:
-                profile = soup.find('div', {'id': 'profile'})
-                info = profile.find('div', {'class': 'info'})
-                new_name = String.StripDiacritics(info.h1.text).strip()
-                new_result = self.name_to_url(new_name + " " + original_name, original_name=original_name, depth=1)
+                title=String.StripDiacritics(h.xpath('//div[@id="profile"]//div[@class="info"]//h1')[0].text_content()).strip()
+                new_result = self.name_to_url(title + " " + original_name, original_name=original_name, depth=1)
                 if new_result != None:
                     local_results.append([new_result['score'], new_result])
             except:
-                print "Failed to parse title"
-        else:
+                pass
+
+
+        n =3
+        try:
+            for x in h.xpath('//div[@id="search-films"]//ul[@class="ui-image-list js-odd-even"]/li'):
+                #print "found"
+                x_link = x.xpath('.//a[contains(@class,"film")]')[0]
+                link = x_link.get('href')
+                candidate_name=String.StripDiacritics(x_link.text)
+                x_details = x.xpath('.//p')[0]
+                details=String.StripDiacritics(x_details.text)
+                yearx = details[-4:]
+                #score = score_strs(name, lookup_name)
+                score = -Util.LevenshteinDistance(original_name, candidate_name) / float(len(original_name))
+                if year != None and yearx.find(year) >= 0:
+                    score += 0.5
+                score += 0.001 * n
+                if n > 0:
+                    n = n - 1
+                local_results.append(
+                    [score,
+                     {'search_url': search_url, 'score': score, 'candidate_name': candidate_name, 'link': link,
+                      'year': yearx, 'dist': Util.LevenshteinDistance(norm_name, candidate_name)}])
+                #print x.text_content(),x_link.text_content(),candidate_name
+            for x in h.xpath('//div[@id="search-films"]//ul[@class="films others"]/li'):
+                #print x.text_content(),candidate_name
+                x_link = x.xpath('.//a[contains(@class,"film")]')[0]
+                link = x_link.get('href')
+                candidate_name=String.StripDiacritics(x_link.text)
+                x_span=x.xpath('.//span[@class="film-year"]')[0]
+                yearx=x_span.text
+                if yearx[-1] == ')':
+                    yearx = yearx[:-1]
+                if yearx[0] == '(':
+                    yearx = yearx[1:]
+                score = -Util.LevenshteinDistance(original_name, candidate_name) / float(len(original_name))
+                if year != None and yearx.find(year) >= 0:
+                    score += 0.5
+                score += 0.001 * n
+                if n > 0:
+                    n = n - 1
+                local_results.append(
+                    [score, {'search_url': search_url, 'candidate_name': candidate_name, 'link': link,
+                             'year': yearx, 'dist': Util.LevenshteinDistance(norm_name, candidate_name)}])
+        except:
+            print "Got exception on lookup!"
+        local_results.sort(reverse=True)
+        #print local_results
+        if len(local_results) == 0:
+            Log("Failed to find any results for " + norm_name)
             return None
+        #elif depth==0:
+        #    url=r1.getheader('location', '').replace('http://www.csfd.cz', '')
+        #    conn.request("GET", url)
+        #    r1 = conn.getresponse()
+        #    #lets try to figure out what the result is
+        #    data1 = r1.read()
+        #    soup = BeautifulSoup.BeautifulSoup(data1)
+        #    #lets try to get the name
+        #    try:
+        #        profile = soup.find('div', {'id': 'profile'})
+        #        info = profile.find('div', {'class': 'info'})
+        #        new_name = String.StripDiacritics(info.h1.text).strip()
+        #        new_result = self.name_to_url(new_name + " " + original_name, original_name=original_name, depth=1)
+        #        if new_result != None:
+        #            local_results.append([new_result['score'], new_result])
+        #    except:
+        #        print "Failed to parse title"
+        #else:
+        #    return None
 
         #lets ask google
         #search_url = "/search?q=" + String.Quote(norm_name)
@@ -147,70 +175,54 @@ class CSFDAgent(Agent.Movies):
         return local_result
 
     def get_movie_info(self, csfdid):
-        conn = httplib.HTTPConnection("www.csfd.cz")
         #norm_name, year = fix_title(String.StripDiacritics(name))
-        search_url = ""
         print csfdid[5:]
-        conn.request("GET", "/film/" + csfdid[5:], None, {'Referer': "http://www.csfd.cz" + search_url})
-        r1 = conn.getresponse()
-        data1 = r1.read()
-        soup = BeautifulSoup.BeautifulSoup(data1)
-        if soup.h1.text.lower() == "redirect":
-            l = soup.p.a['href'].replace('http://www.csfd.cz', '')
-            conn.request("GET", l, None, {'Referer': search_url})
-            r1 = conn.getresponse()
-            data1 = r1.read()
-            soup = BeautifulSoup.BeautifulSoup(data1)
+        request_url="http://www.csfd.cz/film/" + csfdid[5:]
+        data=HTTP.Request(request_url).content
 
-        if not soup:
-            return None
+        h=HTML.ElementFromString(data)
         result = {}
 
         #lets try to get the name
         try:
-            profile = soup.find('div', {'id': 'profile'})
-            info = profile.find('div', {'class': 'info'})
-            result['title'] = String.StripDiacritics(info.h1.text).strip()
+            result['title']=String.StripDiacritics(h.xpath('//div[@id="profile"]//div[@class="info"]//h1')[0].text_content()).strip()
         except:
             print "Failed to parse title"
 
         #lets try to get the origin and year
         try:
-            profile = soup.find('div', {'id': 'profile'})
-            info = profile.find('div', {'class': 'info'})
-            origin = info.find('p', {'class': 'origin'})
-            if origin == None or origin.string == None:
+
+            origin=h.xpath('//div[@id="profile"]//div[@class="content"]//div[@class="info"]//p[@class="origin"]')[0].text
+            if origin == None:
                 pass
             else:
-                result['origin'] = String.StripDiacritics(origin.string)
+                result['origin'] = String.StripDiacritics(origin)
                 m = re.search("([12][0-9]\d\d)", result['origin'].replace(',', ' '))
                 if m:
                     result['year'] = m.group(1)
                 m = re.search(re_duration, result['origin'].replace(',', ' '))
                 if m:
                     result['duration'] = m.group(1)
-
         except:
             print "Failed to get origin"
 
         #lets get rating
         try:
-            rating = soup.find('div', {'id': 'rating'})
-            if rating == None or rating.h2 == None or rating.h2.string == None:
+            rating = h.xpath('//div[@id="rating"]//h2')[0].text
+            if rating == None:
                 pass
             else:
-                result['rating'] = String.StripDiacritics(rating.h2.string)[:-1] # take out the percent symbol
+                result['rating'] = String.StripDiacritics(rating)[:-1] # take out the percent symbol
         except:
             print "Failed to get rating"
 
         #lets get votes
         try:
-            ratings = soup.find('div', {'id': 'ratings'})
-            votes = ratings.find('div', {'id': 'count'})
-            if votes == None or votes.string == None:
+            votes=h.xpath('//div[@id="ratings"]//div[@class="count"]')[0].text_content().split('(')[1].split(')')[0]
+            if votes == None:
                 pass
             else:
-                votes_string = votes.string.replace('&nsbp', '').replace(' ', '').replace('(', '').replace(')', '')
+                votes_string = "".join(votes.replace('&nsbp', '').split())
                 result['votes'] = int(votes_string)
         except:
             print "Failed to get votes"
@@ -218,20 +230,17 @@ class CSFDAgent(Agent.Movies):
         #lets get summary
         # //*[@id="plots"]/div[2]/ul/li/div[2]/text()[1]
         try:
-            plots = soup.find('div', {'id': 'plots'})
-            content = plots.find('div', {'class': 'content'})
-            if content == None:
+            plot=h.xpath('//div[@id="plots"]//div[@class="content"]//div')[0].text_content()
+            if plot == None:
                 pass
             else:
-                result['summary'] = String.StripDiacritics(content.ul.li.div.text.replace('&nbsp', ''))
+                result['summary'] = String.StripDiacritics(plot.replace('&nbsp', '')).strip()
         except:
             print "Failed to get plot"
 
         #lets get the genres
         try:
-            profile = soup.find('div', {'id': 'profile'})
-            info = profile.find('div', {'class': 'info'})
-            genres = info.find('p', {'class': 'genre'}).string.split('/')
+            genres=String.StripDiacritics(h.xpath('//div[@id="profile"]//div[@class="info"]//p[@class="genre"]')[0].text_content()).split('/')
             result['genres'] = []
             for genre in genres:
                 genre = genre.strip()
@@ -241,24 +250,24 @@ class CSFDAgent(Agent.Movies):
 
         #lets get the writers, actors, and other
         try:
-            profile = soup.find('div', {'id': 'profile'})
-            info = profile.find('div', {'class': 'info'})
-            for div in info.findAll('div'):
-                section = String.StripDiacritics(div.h4.string).lower()[:-1]
+            for x in h.xpath('//div[@id="profile"]//div[@class="info"]//div'):
+                #print x.text_content()
+                section=String.StripDiacritics(x.xpath('.//h4')[0].text_content()).strip().lower()[:-1]
+                text=String.StripDiacritics(x.xpath('.//span')[0].text_content().strip())
                 if section == 'rezie':
                     #directors
                     result['directors'] = []
-                    for director in div.span.text.split(','):
+                    for director in text.split(','):
                         result['directors'].append(String.StripDiacritics(director).strip())
                 elif section == 'hraji':
                     #actors
                     result['actors'] = []
-                    for actor in div.span.text.split(','):
+                    for actor in text.split(','):
                         result['actors'].append(String.StripDiacritics(actor).strip())
                 elif section == 'hudba':
                     #music
                     result['music'] = []
-                    for musician in div.span.text.split(','):
+                    for musician in text.split(','):
                         result['music'].append(String.StripDiacritics(musician).strip())
         except:
             print "Failed to get actors"
@@ -266,31 +275,29 @@ class CSFDAgent(Agent.Movies):
         #lets try to get the images
         try:
             #find out if we have images
-            photos = soup.find('li', {'class': 'photos'})
-            if photos == None:
-                pass
-            else:
-                photos_link = photos.a.get('href')
-                #lets get this page
-                conn.request("GET", photos_link, None, {'Referer': search_url})
-                r2 = conn.getresponse()
-                data2 = r2.read()
-                soup2 = BeautifulSoup.BeautifulSoup(data2)
-                result['artwork'] = []
-                for photo in soup2.findAll('div', {'class': 'photo'}):
-                    for x, y in photo.attrs:
-                        z = x + " " + y
-                        m = re.search(re_photo, z)
-                        if m:
-                            result['artwork'].append("http://img.csfd.cz" + m.group(1))
+            photos_link="http://www.csfd.cz/"+h.xpath('//li[@class="photos"]//a')[0].get('href')
+            #lets get this page
+            print photos_link
+            data2=HTTP.Request(photos_link,headers={'Referer':request_url}).content
+            print photos_link
+            h2=HTML.ElementFromString(data2)
+            result['artwork'] = []
+            print "what"
+            for photo in h2.xpath('//div[@class="photo"]'):
+                z=""
+                for x,y in photo.items():
+                    z+=(x+y)
+                m=re.search(re_photo,z)
+                if m:
+                    if 'artwork' not in result:
+                        result['artwork']=[]
+                    result['artwork'].append("http://img.csfd.cz"+m.group(1))
         except:
             print "Failed to get artwork"
 
         #lets try to pull some poster
         try:
-            profile = soup.find('div', {'id': 'profile'})
-            poster = profile.find('div', {'class': 'image'})
-            result['poster'] = String.StripDiacritics(poster.img['src'])
+            result['poster']=h.xpath('//div[@id="profile"]//div[@class="image"]//img')[0].get('src')
         except:
             print "Failed to get poster"
 
@@ -298,6 +305,7 @@ class CSFDAgent(Agent.Movies):
         return result
 
     def update(self, metadata, media, lang):
+        print "Calling update"
         movie_info = self.get_movie_info(metadata.id)
         if movie_info != None:
             print movie_info
@@ -379,9 +387,9 @@ def fix_title(s):
     stops = (
         'AC3', 'ac3', 'DVDRiP', 'dvd', 'dvdrip', 'xvid', 'divx', 'REPACK', 'RECUT', 'EXTENDED', 'Limited', 'RETAIL',
         'RETAiL', 'screener', 'r5', 'proper', 'nfo', 'ws', '1080p', '720p', 'hdtv', 'avi', 'AVI', 'Avi', 'mkv', 'MKV',
-        'Mkv')
+        'Mkv','HDTV')
     removes = (
-    'Disney', 'Disneys', 'Platinum', 'Edition', 'iTALiAN', 'REMASTERED', 'cast', 'Cast', 'kinobox', 'Kinobox')
+    'Disney', 'Disneys', 'Platinum', 'Edition', 'iTALiAN', 'REMASTERED', 'cast', 'Cast', 'kinobox', 'Kinobox','Drama','drama','cz','Cz','CZ','cZ')
     output = []
     for tok in s:
         m_stop = None
