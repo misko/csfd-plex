@@ -167,62 +167,68 @@ def name_to_url(search_name, original_name=None, depth=0):
 
     n =3
 
-    try:
-        for x in h.xpath('//div[@id="search-films"]//ul[@class="ui-image-list js-odd-even"]/li'):
-            #print "found"
-            x_link = x.xpath('.//a[contains(@class,"film")]')[0]
-            link = x_link.get('href')
-            candidate_name=StripDiacritics(x_link.text).lower()
-            x_details = x.xpath('.//p')[0]
-            details=StripDiacritics(x_details.text)
-            yearx = details[-4:]
-            #score = score_strs(name, lookup_name)
-            dist=levenshtein_distance(original_name.lower(), candidate_name)
-            lcs = len(longest_common_substring(original_name.lower(), candidate_name))
-            score = -dist / float(len(original_name))+ 5*lcs/float(len(search_name))
-            if year != None and yearx.find(year) >= 0:
-                score = score + 0.7
-            elif year!=None and abs(int(yearx)-int(year))<2:
-                score = score + 0.5
-            else:
-                score = score - 0.5
-            score += 0.001 * n
-            if n > 0:
-                n = n - 1
-            local_results.append(
-                [score,
-                 {'search_url': search_url, 'score': score, 'candidate_name': candidate_name, 'link': link,
-                  'year': yearx, 'dist': dist, 'lcs':lcs}])
-            #print x.text_content(),x_link.text_content(),candidate_name
-        for x in h.xpath('//div[@id="search-films"]//ul[@class="films others"]/li'):
-            #print x.text_content(),candidate_name
-            x_link = x.xpath('.//a[contains(@class,"film")]')[0]
-            link = x_link.get('href')
-            candidate_name=StripDiacritics(x_link.text).lower()
-            x_span=x.xpath('.//span[@class="film-year"]')[0]
-            yearx=x_span.text
-            if yearx[-1] == ')':
-                yearx = yearx[:-1]
-            if yearx[0] == '(':
-                yearx = yearx[1:]
+    #try:
+    for x in h.xpath('//div[@id="search-films"]//ul[@class="ui-image-list js-odd-even"]/li'):
+        #print "found"
+        x_link = x.xpath('.//a[contains(@class,"film")]')[0]
+        link = x_link.get('href')
+        candidate_name=StripDiacritics(x_link.text).lower()
+        x_alt = x.xpath('.//span[@class="search-name"]')
+        if len(x_alt)>0:
+            candidate_name=StripDiacritics(x_alt[0].text.replace('(','').replace(')',''))
+        x_details = x.xpath('.//p')[0]
+        details=StripDiacritics(x_details.text)
+        yearx = details[-4:]
+        #score = score_strs(name, lookup_name)
+        dist=levenshtein_distance(original_name.lower(), candidate_name)
+        lcs = len(longest_common_substring(original_name.lower(), candidate_name))
+        score = -dist / float(len(original_name))+ 5*lcs/float(len(search_name))
+        if year != None and yearx.find(year) >= 0:
+            score = score + 0.7
+        elif year!=None and abs(int(yearx)-int(year))<2:
+            score = score + 0.5
+        else:
+            score = score - 0.5
+        score += 0.001 * n
+        if n > 0:
+            n = n - 1
+        local_results.append(
+            [score,
+             {'search_url': search_url, 'score': score, 'candidate_name': candidate_name, 'link': link,
+              'year': yearx, 'dist': dist, 'lcs':lcs}])
+        #print x.text_content(),x_link.text_content(),candidate_name
+    for x in h.xpath('//div[@id="search-films"]//ul[@class="films others"]/li'):
+        #print x.text_content(),candidate_name
+        x_link = x.xpath('.//a[contains(@class,"film")]')[0]
+        link = x_link.get('href')
+        candidate_name=StripDiacritics(x_link.text).lower()
+        x_alt = x.xpath('.//span[@class="search-name"]')
+        if len(x_alt)>0:
+            candidate_name=StripDiacritics(x_alt[0].text.replace('(','').replace(')',''))
+        x_span=x.xpath('.//span[@class="film-year"]')[0]
+        yearx=x_span.text
+        if yearx[-1] == ')':
+            yearx = yearx[:-1]
+        if yearx[0] == '(':
+            yearx = yearx[1:]
 
-            dist=levenshtein_distance(original_name.lower(), candidate_name)
-            lcs = len(longest_common_substring(original_name.lower(), candidate_name))
-            score = -dist / float(len(original_name)) + 5*lcs/float(len(search_name))
-            if year != None and yearx.find(year) >= 0:
-                score = score + 0.7
-            elif year!=None and abs(int(yearx)-int(year))<2:
-                score = score + 0.5
-            else:
-                score = score - 0.5
-            score += 0.001 * n
-            if n > 0:
-                n = n - 1
-            local_results.append(
-                [score, {'search_url': search_url, 'candidate_name': candidate_name, 'link': link,
-                         'year': yearx, 'score':score, 'dist': dist, 'lcs':lcs}])
-    except:
-        print >> sys.stderr, "Got exception on lookup!"
+        dist=levenshtein_distance(original_name.lower(), candidate_name)
+        lcs = len(longest_common_substring(original_name.lower(), candidate_name))
+        score = -dist / float(len(original_name)) + 5*lcs/float(len(search_name))
+        if year != None and yearx.find(year) >= 0:
+            score = score + 0.7
+        elif year!=None and abs(int(yearx)-int(year))<2:
+            score = score + 0.5
+        else:
+            score = score - 0.5
+        score += 0.001 * n
+        if n > 0:
+            n = n - 1
+        local_results.append(
+            [score, {'search_url': search_url, 'candidate_name': candidate_name, 'link': link,
+                     'year': yearx, 'score':score, 'dist': dist, 'lcs':lcs}])
+    #except:
+    #    print >> sys.stderr, "Got exception on lookup!"
     local_results.sort(reverse=True)
     #print local_results
     if len(local_results) == 0:
@@ -231,8 +237,8 @@ def name_to_url(search_name, original_name=None, depth=0):
 
 
     local_results.sort(reverse=True)
-    #for result in local_results[:5]:
-    #    print result
+    for result in local_results[:5]:
+        print result
     #print local_results
     local_result = local_results[0][1]
     m = re.search(re_csfdid, local_result['link'])

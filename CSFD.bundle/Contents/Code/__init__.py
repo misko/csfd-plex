@@ -76,6 +76,9 @@ class CSFDAgent(Agent.Movies):
             x_link = x.xpath('.//a[contains(@class,"film")]')[0]
             link = x_link.get('href')
             candidate_name=String.StripDiacritics(x_link.text)
+            x_alt = x.xpath('.//span[@class="search-name"]')
+            if len(x_alt)>0:
+                candidate_name=String.StripDiacritics(x_alt[0].text.replace('(','').replace(')',''))
             x_details = x.xpath('.//p')[0]
             details=String.StripDiacritics(x_details.text)
             yearx = details[-4:]
@@ -102,6 +105,9 @@ class CSFDAgent(Agent.Movies):
             x_link = x.xpath('.//a[contains(@class,"film")]')[0]
             link = x_link.get('href')
             candidate_name=String.StripDiacritics(x_link.text)
+            x_alt = x.xpath('.//span[@class="search-name"]')
+            if len(x_alt)>0:
+                candidate_name=String.StripDiacritics(x_alt[0].text.replace('(','').replace(')',''))
             x_span=x.xpath('.//span[@class="film-year"]')[0]
             yearx=x_span.text
             if yearx[-1] == ')':
