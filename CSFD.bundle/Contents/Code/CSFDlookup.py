@@ -226,8 +226,8 @@ def name_to_url(search_name, original_name=None, depth=0):
 
 
     local_results.sort(reverse=True)
-    for result in local_results[:5]:
-        print result
+    #for result in local_results[:5]:
+    #    print result
     #print local_results
     local_result = local_results[0][1]
     m = re.match(re_csfdid, local_result['link'])
@@ -376,12 +376,27 @@ def get_movie_info(csfdid):
 
     return result
 
+def usage():
+    print "%s options" % sys.argv[0]
+    print "-f filename - if provided without title will try to extract title from this"
+    print "-t title - used to search csfd, if year is in title script will try to extract it"
+    print "-y year - the year of the release, preferably within 1 year of what is says on csfd"
+    print "-m movies_root - if provided with filename and the result of lookup is movie, print mkdir and mv commands"
+    print "-m tv_root - if provided with filename and the result of lookup is tv, print mkdir and mv commands"
+    print "* at least, filename or title must be provided"
+    print "examples:"
+    print "%s -t 'Dedictvi aneb Kurvahosigutntag'" % sys.argv[0]
+    print "%s -f 'Dedictvi_aneb_Kurvahosigutntag.mkv'" % sys.argv[0]
+    print "%s -f 'Dedictvi_aneb Kurvahosigutntag_1992.mkv'" % sys.argv[0]
+    print "%s -f 'Dedictvi_aneb Kurvahosigutntag.mkv' -y 1992" % sys.argv[0]
+    sys.exit(1)
 
 if __name__=='__main__':
     title=""
     filename=""
     year=""
-    root=""
+    root_movies=""
+    root_tv=""
     x=1
     while x<len(sys.argv):
         if sys.argv[x] in "-f":
@@ -393,9 +408,14 @@ if __name__=='__main__':
         elif sys.argv[x] in "-t":
             title=sys.argv[x+1].decode("utf-8")
             x=x+2
-        elif sys.argv[x] in "-r":
-            root=sys.argv[x+1].decode("utf-8")
+        elif sys.argv[x] in "-m":
+            root_movies=sys.argv[x+1].decode("utf-8")
             x=x+2
+        elif sys.argv[x] in "-v":
+            root_tv=sys.argv[x+1].decode("utf-8")
+            x=x+2
+        elif sys.argv[x].lower() in ("-h","--help"):
+            usage()
         else:
             x=x+1
     if (title!="" or filename!=""):
@@ -411,9 +431,18 @@ if __name__=='__main__':
             if -d['score']<0.3:
                 x=get_movie_info(d['csfdid'])
                 print "#"+str(x)
+                root=""
+                if x['type']=="MOVIE":
+                    root=root_movies
+                else:
+                    root=root_tv
                 if filename!="" and root!="":
                     try:
-                        dest_folder=root+"/"+str(x['year'])+"/"+str(x['title'])+"/"
+                        dest_folder=""
+                        if x['type']=="MOVIE":
+                            dest_folder=root+"/"+str(x['year'])+"/"+str(x['title'])+"/"
+                        else:
+                            dest_folder=root+"/"+str(x['title'])+"/"
                         print "mkdir -p \'" + dest_folder + "\'"
                         print "mv -v \'"+filename+ "\' \'"+dest_folder+"\'"
                     except:
