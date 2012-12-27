@@ -61,6 +61,10 @@ class CSFDAgent(Agent.Movies):
                 new_result = self.name_to_url(title + " " + original_name, original_name=original_name, depth=1)
                 if new_result != None:
                     local_results.append([new_result['score'], new_result])
+                else:
+                    link=h.xpath('//html//head//link[@rel="canonical"]')[0].get('href').replace('http://www.csfd.cz','')
+                    local_results.append([1.0, {'search_url': search_url, 'candidate_name': title, 'link': link,
+                                                'year': "0", 'score':1.0, 'dist': len(search_name), 'lcs':len(search_name)}])
             except:
                 pass
 

@@ -135,6 +135,7 @@ def name_to_url(search_name, original_name=None, depth=0):
             pass
         else:
             search_name += " "+k
+    search_name=search_name.strip()
     search_url = "http://www.csfd.cz/hledat/?q=" + Quote(search_name)
     try:
         print >> sys.stderr, "fetching " + search_url
@@ -156,6 +157,10 @@ def name_to_url(search_name, original_name=None, depth=0):
             new_result = name_to_url(title + " " + original_name, original_name=original_name, depth=1)
             if new_result != None:
                 local_results.append([new_result['score'], new_result])
+            else:
+                link=h.xpath('//html//head//link[@rel="canonical"]')[0].get('href').replace('http://www.csfd.cz','')
+                local_results.append([1.0, {'search_url': search_url, 'candidate_name': title, 'link': link,
+                                              'year': "0", 'score':1.0, 'dist': len(search_name), 'lcs':len(search_name)}])
         except:
             pass
 
@@ -230,7 +235,7 @@ def name_to_url(search_name, original_name=None, depth=0):
     #    print result
     #print local_results
     local_result = local_results[0][1]
-    m = re.match(re_csfdid, local_result['link'])
+    m = re.search(re_csfdid, local_result['link'])
     if m != None:
         local_result['csfdid'] = "csfd:" + m.group(1)
     else:
@@ -428,6 +433,7 @@ if __name__=='__main__':
         print >> sys.stderr, title, year
         d=name_to_url(title)
         if d:
+            print d
             if -d['score']<0.3:
                 x=get_movie_info(d['csfdid'])
                 print "#"+str(x)
