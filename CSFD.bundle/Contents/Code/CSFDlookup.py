@@ -7,6 +7,30 @@ re_csfdid = ("^/film/(\d+)\S+")
 re_duration = ("([0-9]+)\s+min")
 re_photo = ("(/photos/filmy/\S+.jpg)")
 
+
+# From http://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Longest_common_substring#Python
+def longest_common_substring(first, second):
+    S = first
+    T = second
+
+    m = len(S); n = len(T)
+    L = [[0] * (n+1) for i in xrange(m+1)]
+    LCS = set()
+    longest = 0
+    for i in xrange(m):
+        for j in xrange(n):
+            if S[i] == T[j]:
+                v = L[i][j] + 1
+                L[i+1][j+1] = v
+                if v > longest:
+                    longest = v
+                    LCS = set()
+                if v == longest:
+                    LCS.add(S[i-v+1:i+1])
+    if len(LCS) > 0:
+        return LCS.pop()
+    return ''
+
 def request(page):
     p=urllib.urlopen(page)
     return p.read()
@@ -137,17 +161,20 @@ def name_to_url(search_name, original_name=None, depth=0):
 
 
     n =3
+
     try:
         for x in h.xpath('//div[@id="search-films"]//ul[@class="ui-image-list js-odd-even"]/li'):
             #print "found"
             x_link = x.xpath('.//a[contains(@class,"film")]')[0]
             link = x_link.get('href')
-            candidate_name=StripDiacritics(x_link.text)
+            candidate_name=StripDiacritics(x_link.text).lower()
             x_details = x.xpath('.//p')[0]
             details=StripDiacritics(x_details.text)
             yearx = details[-4:]
             #score = score_strs(name, lookup_name)
-            score = -levenshtein_distance(original_name, candidate_name) / float(len(original_name))
+            dist=levenshtein_distance(original_name.lower(), candidate_name)
+            lcs = len(longest_common_substring(original_name.lower(), candidate_name))
+            score = -dist / float(len(original_name))+ 3*lcs/float(len(search_name))
             if year != None and yearx.find(year) >= 0:
                 score += 0.5
             score += 0.001 * n
@@ -156,20 +183,23 @@ def name_to_url(search_name, original_name=None, depth=0):
             local_results.append(
                 [score,
                  {'search_url': search_url, 'score': score, 'candidate_name': candidate_name, 'link': link,
-                  'year': yearx, 'dist': levenshtein_distance(norm_name, candidate_name)}])
+                  'year': yearx, 'dist': dist, 'lcs':lcs}])
             #print x.text_content(),x_link.text_content(),candidate_name
         for x in h.xpath('//div[@id="search-films"]//ul[@class="films others"]/li'):
             #print x.text_content(),candidate_name
             x_link = x.xpath('.//a[contains(@class,"film")]')[0]
             link = x_link.get('href')
-            candidate_name=StripDiacritics(x_link.text)
+            candidate_name=StripDiacritics(x_link.text).lower()
             x_span=x.xpath('.//span[@class="film-year"]')[0]
             yearx=x_span.text
             if yearx[-1] == ')':
                 yearx = yearx[:-1]
             if yearx[0] == '(':
                 yearx = yearx[1:]
-            score = -levenshtein_distance(original_name, candidate_name) / float(len(original_name))
+
+            dist=levenshtein_distance(original_name.lower(), candidate_name)
+            lcs = len(longest_common_substring(original_name.lower(), candidate_name))
+            score = -dist / float(len(original_name)) + 3*lcs/float(len(search_name))
             if year != None and yearx.find(year) >= 0:
                 score += 0.5
             score += 0.001 * n
@@ -177,7 +207,7 @@ def name_to_url(search_name, original_name=None, depth=0):
                 n = n - 1
             local_results.append(
                 [score, {'search_url': search_url, 'candidate_name': candidate_name, 'link': link,
-                         'year': yearx, 'score':score, 'dist': levenshtein_distance(norm_name, candidate_name)}])
+                         'year': yearx, 'score':score, 'dist': dist, 'lcs':lcs}])
     except:
         print >> sys.stderr, "Got exception on lookup!"
     local_results.sort(reverse=True)
@@ -188,6 +218,8 @@ def name_to_url(search_name, original_name=None, depth=0):
 
 
     local_results.sort(reverse=True)
+    #for result in local_results:
+    #    print result
     #print local_results
     local_result = local_results[0][1]
     m = re.match(re_csfdid, local_result['link'])
@@ -341,6 +373,7 @@ if __name__=='__main__':
     title=""
     filename=""
     year=""
+    root=""
     x=1
     while x<len(sys.argv):
         if sys.argv[x] in "-f":
@@ -351,6 +384,9 @@ if __name__=='__main__':
             x=x+2
         elif sys.argv[x] in "-t":
             title=sys.argv[x+1].decode("utf-8")
+            x=x+2
+        elif sys.argv[x] in "-r":
+            root=sys.argv[x+1].decode("utf-8")
             x=x+2
         else:
             x=x+1
@@ -366,7 +402,14 @@ if __name__=='__main__':
         if d:
             if -d['score']<0.3:
                 x=get_movie_info(d['csfdid'])
-                print x
+                print "#"+str(x)
+                if filename!="" and root!="":
+                    try:
+                        dest_folder=root+"/"+str(x['year'])+"/"+str(x['title'])+"/"
+                        print "mkdir -p \'" + dest_folder + "\'"
+                        print "mv -v \'"+filename+ "\' \'"+dest_folder+"\'"
+                    except:
+                        pass
             else:
                 #print "did not find a good match"
                 pass

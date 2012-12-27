@@ -76,7 +76,9 @@ class CSFDAgent(Agent.Movies):
                 details=String.StripDiacritics(x_details.text)
                 yearx = details[-4:]
                 #score = score_strs(name, lookup_name)
-                score = -Util.LevenshteinDistance(original_name, candidate_name) / float(len(original_name))
+                dist=Util.LevenshteinDistance(original_name.lower(), candidate_name)
+                lcs = len(Util.LongestCommonSubstring(original_name.lower(), candidate_name))
+                score = -dist / float(len(original_name)) + 3*lcs/float(len(search_name))
                 if year != None and yearx.find(year) >= 0:
                     score += 0.5
                 score += 0.001 * n
@@ -85,7 +87,7 @@ class CSFDAgent(Agent.Movies):
                 local_results.append(
                     [score,
                      {'search_url': search_url, 'score': score, 'candidate_name': candidate_name, 'link': link,
-                      'year': yearx, 'dist': Util.LevenshteinDistance(norm_name, candidate_name)}])
+                      'year': yearx, 'dist': dist, 'lcs':lcs}])
                 #print x.text_content(),x_link.text_content(),candidate_name
             for x in h.xpath('//div[@id="search-films"]//ul[@class="films others"]/li'):
                 #print x.text_content(),candidate_name
@@ -98,7 +100,9 @@ class CSFDAgent(Agent.Movies):
                     yearx = yearx[:-1]
                 if yearx[0] == '(':
                     yearx = yearx[1:]
-                score = -Util.LevenshteinDistance(original_name, candidate_name) / float(len(original_name))
+                dist=Util.LevenshteinDistance(original_name.lower(), candidate_name)
+                lcs = len(Util.LongestCommonSubstring(original_name.lower(), candidate_name))
+                score = -dist / float(len(original_name)) + 3*lcs/float(len(search_name))
                 if year != None and yearx.find(year) >= 0:
                     score += 0.5
                 score += 0.001 * n
@@ -106,7 +110,7 @@ class CSFDAgent(Agent.Movies):
                     n = n - 1
                 local_results.append(
                     [score, {'search_url': search_url, 'candidate_name': candidate_name, 'link': link,
-                             'year': yearx, 'score':score, 'dist': Util.LevenshteinDistance(norm_name, candidate_name)}])
+                             'year': yearx, 'score':score, 'dist': dist, 'lcs':lcs}])
         except:
             print "Got exception on lookup!"
         local_results.sort(reverse=True)
