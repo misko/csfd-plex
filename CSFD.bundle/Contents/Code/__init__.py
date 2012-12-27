@@ -1,5 +1,4 @@
 import datetime, re, time, unicodedata, hashlib, urlparse, types, urllib, httplib
-import BeautifulSoup
 
 re_years = ("^(19\d\d)[+]", "^(20\d\d)[+]", "[+](19\d\d)$", "[+](20\d\d)$", "[+](19\d\d)[+]", "[+](20\d\d)[+]")
 re_csfdid = ("^/film/(\d+)\S+")
@@ -8,7 +7,6 @@ re_photo = ("(/photos/filmy/\S+.jpg)")
 
 def Start():
     HTTP.CacheTime = CACHE_1HOUR * 4
-
 
 class CSFDAgent(Agent.Movies):
     name = 'CSFD'
@@ -43,28 +41,12 @@ class CSFDAgent(Agent.Movies):
                 search_name += " "+k
         search_url = "http://www.csfd.cz/hledat/?q=" + String.Quote(search_name)
         try:
+            print "fetching " + search_url
             data=HTTP.Request(search_url)
             print data.headers
             #data.headers
-        except Exception, e:
-            print data.headers
-            if e.code  in (301,302) and depth==0:
-                url=r1.getheader('location', '').replace('http://www.csfd.cz', '')
-                conn.request("GET", url)
-                r1 = conn.getresponse()
-                #lets try to figure out what the result is
-                data1 = r1.read()
-                soup = BeautifulSoup.BeautifulSoup(data1)
-                #lets try to get the name
-                try:
-                    profile = soup.find('div', {'id': 'profile'})
-                    info = profile.find('div', {'class': 'info'})
-                    new_name = String.StripDiacritics(info.h1.text).strip()
-                    new_result = self.name_to_url(new_name + " " + original_name, original_name=original_name, depth=1)
-                    if new_result != None:
-                        local_results.append([new_result['score'], new_result])
-                except:
-                    print "Failed to parse title"
+        except:
+            print "Failed to get page"
 
         h=HTML.ElementFromString(data)
 
@@ -124,7 +106,7 @@ class CSFDAgent(Agent.Movies):
                     n = n - 1
                 local_results.append(
                     [score, {'search_url': search_url, 'candidate_name': candidate_name, 'link': link,
-                             'year': yearx, 'dist': Util.LevenshteinDistance(norm_name, candidate_name)}])
+                             'year': yearx, 'score':score, 'dist': Util.LevenshteinDistance(norm_name, candidate_name)}])
         except:
             print "Got exception on lookup!"
         local_results.sort(reverse=True)
@@ -132,36 +114,7 @@ class CSFDAgent(Agent.Movies):
         if len(local_results) == 0:
             Log("Failed to find any results for " + norm_name)
             return None
-        #elif depth==0:
-        #    url=r1.getheader('location', '').replace('http://www.csfd.cz', '')
-        #    conn.request("GET", url)
-        #    r1 = conn.getresponse()
-        #    #lets try to figure out what the result is
-        #    data1 = r1.read()
-        #    soup = BeautifulSoup.BeautifulSoup(data1)
-        #    #lets try to get the name
-        #    try:
-        #        profile = soup.find('div', {'id': 'profile'})
-        #        info = profile.find('div', {'class': 'info'})
-        #        new_name = String.StripDiacritics(info.h1.text).strip()
-        #        new_result = self.name_to_url(new_name + " " + original_name, original_name=original_name, depth=1)
-        #        if new_result != None:
-        #            local_results.append([new_result['score'], new_result])
-        #    except:
-        #        print "Failed to parse title"
-        #else:
-        #    return None
 
-        #lets ask google
-        #search_url = "/search?q=" + String.Quote(norm_name)
-        #conn = httplib.HTTPConnection("www.google.com")
-        #conn.request("GET", search_url)
-        #r1 = conn.getresponse()
-        #lets try to figure out what the result is
-        #data1 = r1.read()
-        #if r1.status not in (301, 302):
-        #    #skip
-        #    pass
 
         local_results.sort(reverse=True)
         #print local_results
@@ -301,7 +254,6 @@ class CSFDAgent(Agent.Movies):
         except:
             print "Failed to get poster"
 
-        #results.Append(MetadataSearchResult(id="csfd_id:" + csfd_id, name=csfd_name, year=2000, score=100,lang = Locale.Language.English))
         return result
 
     def update(self, metadata, media, lang):
