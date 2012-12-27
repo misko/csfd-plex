@@ -174,9 +174,13 @@ def name_to_url(search_name, original_name=None, depth=0):
             #score = score_strs(name, lookup_name)
             dist=levenshtein_distance(original_name.lower(), candidate_name)
             lcs = len(longest_common_substring(original_name.lower(), candidate_name))
-            score = -dist / float(len(original_name))+ 3*lcs/float(len(search_name))
+            score = -dist / float(len(original_name))+ 5*lcs/float(len(search_name))
             if year != None and yearx.find(year) >= 0:
-                score += 0.5
+                score = score + 0.7
+            elif year!=None and abs(int(yearx)-int(year))<2:
+                score = score + 0.5
+            else:
+                score = score - 0.5
             score += 0.001 * n
             if n > 0:
                 n = n - 1
@@ -199,9 +203,13 @@ def name_to_url(search_name, original_name=None, depth=0):
 
             dist=levenshtein_distance(original_name.lower(), candidate_name)
             lcs = len(longest_common_substring(original_name.lower(), candidate_name))
-            score = -dist / float(len(original_name)) + 3*lcs/float(len(search_name))
+            score = -dist / float(len(original_name)) + 5*lcs/float(len(search_name))
             if year != None and yearx.find(year) >= 0:
-                score += 0.5
+                score = score + 0.7
+            elif year!=None and abs(int(yearx)-int(year))<2:
+                score = score + 0.5
+            else:
+                score = score - 0.5
             score += 0.001 * n
             if n > 0:
                 n = n - 1
@@ -218,8 +226,8 @@ def name_to_url(search_name, original_name=None, depth=0):
 
 
     local_results.sort(reverse=True)
-    #for result in local_results:
-    #    print result
+    for result in local_results[:5]:
+        print result
     #print local_results
     local_result = local_results[0][1]
     m = re.match(re_csfdid, local_result['link'])
