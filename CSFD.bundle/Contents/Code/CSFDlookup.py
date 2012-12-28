@@ -131,7 +131,7 @@ def fix_title(s):
 def name_to_url(search_name, filename, original_name=None, depth=0):
     norm_name, year = fix_title(StripDiacritics(search_name))
     if filename != None:
-        print "FN:" + filename
+        #print "FN:" + filename
         file_name, file_year = fix_title(StripDiacritics(filename))
         if year == None:
             year = file_year
@@ -460,19 +460,19 @@ if __name__ == '__main__':
 
         d = name_to_url(title, filename)
         if d:
-            print d
+            #print d
             if -d['score'] < 0.3:
                 x = get_movie_info(d['csfdid'])
                 print "#" + str(x)
                 root = ""
-                if x['type'] == "MOVIE":
+                if x['type'] == "MOVIE" or x['type']=="TV MOVIE":
                     root = root_movies
                 else:
                     root = root_tv
                 if filename != "" and root != "":
                     try:
                         dest_folder = ""
-                        if x['type'] == "MOVIE":
+                        if x['type'] == "MOVIE" or x['type']=="TV MOVIE":
                             dest_folder = root + "/" + str(x['year']) + "/" + str(x['title']) + "/"
                         else:
                             dest_folder = root + "/" + str(x['title']) + "/"
