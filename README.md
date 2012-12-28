@@ -19,6 +19,8 @@ C:\Documents and Settings\**yourusername**\Local Settings\Application Data\Plex 
 After extraction things should look like,
 
 * On linux:
+
+```
 /var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/
 /var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents
 /var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/DefaultPrefs.json
@@ -28,3 +30,4 @@ After extraction things should look like,
 /var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Resources/icon-default.png
 /var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Resources/attribution.png
 /var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Info.plist
+```
