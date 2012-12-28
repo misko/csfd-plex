@@ -183,7 +183,7 @@ def name_to_url(search_name, filename, original_name=None, depth=0):
         #print "found"
         x_link = x.xpath('.//a[contains(@class,"film")]')[0]
         link = x_link.get('href')
-        candidate_name = StripDiacritics(x_link.text).lower()
+        candidate_name,y = fix_title(StripDiacritics(x_link.text).lower())
         x_alt = x.xpath('.//span[@class="search-name"]')
         if len(x_alt) > 0:
             candidate_name = StripDiacritics(x_alt[0].text.replace('(', '').replace(')', ''))
@@ -212,7 +212,7 @@ def name_to_url(search_name, filename, original_name=None, depth=0):
         #print x.text_content(),candidate_name
         x_link = x.xpath('.//a[contains(@class,"film")]')[0]
         link = x_link.get('href')
-        candidate_name = StripDiacritics(x_link.text).lower()
+        candidate_name,y = fix_title(StripDiacritics(x_link.text).lower())
         x_alt = x.xpath('.//span[@class="search-name"]')
         if len(x_alt) > 0:
             candidate_name = StripDiacritics(x_alt[0].text.replace('(', '').replace(')', ''))
@@ -240,6 +240,7 @@ def name_to_url(search_name, filename, original_name=None, depth=0):
                      'year': yearx, 'score': score, 'dist': dist, 'lcs': lcs}])
         #except:
     #    print >> sys.stderr, "Got exception on lookup!"
+
     local_results.sort(reverse=True)
     #print local_results
     if len(local_results) == 0:
@@ -247,6 +248,7 @@ def name_to_url(search_name, filename, original_name=None, depth=0):
         return None
 
     local_results.sort(reverse=True)
+
     #for result in local_results[:10]:
     #    print result
     #print local_results

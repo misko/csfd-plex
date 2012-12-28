@@ -85,7 +85,7 @@ class CSFDAgent(Agent.Movies):
                 #print "found"
                 x_link = x.xpath('.//a[contains(@class,"film")]')[0]
                 link = x_link.get('href')
-                candidate_name = String.StripDiacritics(x_link.text)
+                candidate_name,y = fix_title(String.StripDiacritics(x_link.text))
                 x_alt = x.xpath('.//span[@class="search-name"]')
                 if len(x_alt) > 0:
                     candidate_name = String.StripDiacritics(x_alt[0].text.replace('(', '').replace(')', ''))
@@ -114,7 +114,7 @@ class CSFDAgent(Agent.Movies):
                 #print x.text_content(),candidate_name
                 x_link = x.xpath('.//a[contains(@class,"film")]')[0]
                 link = x_link.get('href')
-                candidate_name = String.StripDiacritics(x_link.text)
+                candidate_name,y = fix_title(String.StripDiacritics(x_link.text))
                 x_alt = x.xpath('.//span[@class="search-name"]')
                 if len(x_alt) > 0:
                     candidate_name = String.StripDiacritics(x_alt[0].text.replace('(', '').replace(')', ''))
@@ -335,13 +335,16 @@ class CSFDAgent(Agent.Movies):
 
     def search(self, results, media, lang, manual=False):
         print "Calling search"
-        filename = os.path.basename(String.Unquote(media.filename))
-        if filename.lower() == "video_ts.ifo" or filename.lower()=="video_ts":
-            unquoted=String.Unquote(media.filename)
-            p = unquoted.split(os.path.sep)
-            if len(p)>=3:
-                filename=p[-3]
-        print "FN2", filename
+        filename=None
+        try:
+            filename = os.path.basename(String.Unquote(media.filename))
+            if filename.lower() == "video_ts.ifo" or filename.lower()=="video_ts":
+                unquoted=String.Unquote(media.filename)
+                p = unquoted.split(os.path.sep)
+                if len(p)>=3:
+                    filename=p[-3]
+        except:
+            pass
         d = self.name_to_url(media.name, filename)
         if d != None:
             print d
