@@ -19,7 +19,6 @@ C:\Documents and Settings\**yourusername**\Local Settings\Application Data\Plex 
 After extraction things should look like,
 
 * On linux:
-
 ```
 /var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/
 /var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents
@@ -30,4 +29,21 @@ After extraction things should look like,
 /var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Resources/icon-default.png
 /var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Resources/attribution.png
 /var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Info.plist
+```
+
+* On windows
+
+* On Max/OSX:
+```
+~/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/
+~/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents
+~/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Code
+~/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Code/__init__.py
+~/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Code/__init__.pyc
+~/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Code/CSFDlookup.py
+~/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/DefaultPrefs.json
+~/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Info.plist
+~/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Resources
+~/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Resources/attribution.png
+~/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Resources/icon-default.png
 ```
