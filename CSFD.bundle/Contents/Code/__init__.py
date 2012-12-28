@@ -1,12 +1,14 @@
-import datetime, re, time, unicodedata, hashlib, urlparse, types, urllib, httplib
+import datetime, re, time, unicodedata, hashlib, urlparse, types, urllib, httplib, os
 
-re_years = ("^(19\d\d)[+]", "^(20\d\d)[+]", "[+](19\d\d)$", "[+](20\d\d)$", "[+](19\d\d)[+]", "[+](20\d\d)[+]")
+re_years = (
+    "^(19\d\d)[+]", "^(20\d\d)[+]", "[+](19\d\d)$", "[+](20\d\d)$", "[+](19\d\d)[+]", "[+](20\d\d)[+]", "\[([12]\d\d\d)\]","\(([12]\d\d\d)\)")
 re_csfdid = ("^/film/(\d+)\S+")
 re_duration = ("([0-9]+)\s+min")
 re_photo = ("(/photos/filmy/\S+.jpg)")
 
 def Start():
     HTTP.CacheTime = CACHE_1HOUR * 4
+
 
 class CSFDAgent(Agent.Movies):
     name = 'CSFD'
@@ -26,11 +28,16 @@ class CSFDAgent(Agent.Movies):
         string = string.strip('_')
         return string.strip().lower()
 
-    def name_to_url(self, search_name, original_name=None, depth=0):
+    def name_to_url(self, search_name, filename, original_name=None, depth=0):
         norm_name, year = fix_title(String.StripDiacritics(search_name))
-        if original_name==None:
-            original_name=norm_name
-        print norm_name ,year
+        if filename!=None:
+            print "FN:" + filename
+            file_name, file_year = fix_title(String.StripDiacritics(filename))
+            if year == None:
+                year = file_year
+        if original_name == None:
+            original_name = norm_name
+        print norm_name, year
         #lets remove the sequel number from the norm_name
         search_name_x = norm_name.split()
         search_name = ""
@@ -38,98 +45,100 @@ class CSFDAgent(Agent.Movies):
             if k in ("1", "2", "3", "4", "5", "6", "7", "8", "9"):
                 pass
             else:
-                search_name += " "+k
-        search_name=" ".join(search_name.strip().split())
+                search_name += " " + k
+        search_name = " ".join(search_name.strip().split())
         search_url = "http://www.csfd.cz/hledat/?q=" + String.Quote(search_name)
         try:
             print "fetching " + search_url
-            data=HTTP.Request(search_url)
+            data = HTTP.Request(search_url)
             print data.headers
             #data.headers
         except:
             print "Failed to get page"
 
-        h=HTML.ElementFromString(data)
+        h = HTML.ElementFromString(data)
 
         #lets try to figure out what the result is
         local_results = []
 
 
         #try to get the name if we can then got redirected!
-        if depth==0:
+        if depth == 0:
             try:
-                title=String.StripDiacritics(h.xpath('//div[@id="profile"]//div[@class="info"]//h1')[0].text_content()).strip()
-                new_result = self.name_to_url(title + " " + original_name, original_name=original_name, depth=1)
+                title = String.StripDiacritics(
+                    h.xpath('//div[@id="profile"]//div[@class="info"]//h1')[0].text_content()).strip()
+                new_result = self.name_to_url(title + " " + original_name, filename, original_name=original_name, depth=1)
                 if new_result != None:
                     local_results.append([new_result['score'], new_result])
                 else:
-                    link=h.xpath('//html//head//link[@rel="canonical"]')[0].get('href').replace('http://www.csfd.cz','')
+                    link = h.xpath('//html//head//link[@rel="canonical"]')[0].get('href').replace('http://www.csfd.cz',
+                        '')
                     local_results.append([1.0, {'search_url': search_url, 'candidate_name': title, 'link': link,
-                                                'year': "0", 'score':1.0, 'dist': len(search_name), 'lcs':len(search_name)}])
+                                                'year': "0", 'score': 1.0, 'dist': len(search_name),
+                                                'lcs': len(search_name)}])
             except:
                 pass
 
-
-        n =3
+        n = 3
         try:
             for x in h.xpath('//div[@id="search-films"]//ul[@class="ui-image-list js-odd-even"]/li'):
                 #print "found"
                 x_link = x.xpath('.//a[contains(@class,"film")]')[0]
                 link = x_link.get('href')
-                candidate_name=String.StripDiacritics(x_link.text)
+                candidate_name = String.StripDiacritics(x_link.text)
                 x_alt = x.xpath('.//span[@class="search-name"]')
-                if len(x_alt)>0:
-                    candidate_name=String.StripDiacritics(x_alt[0].text.replace('(','').replace(')',''))
+                if len(x_alt) > 0:
+                    candidate_name = String.StripDiacritics(x_alt[0].text.replace('(', '').replace(')', ''))
                 x_details = x.xpath('.//p')[0]
-                details=String.StripDiacritics(x_details.text)
+                details = String.StripDiacritics(x_details.text)
                 yearx = details[-4:]
                 #score = score_strs(name, lookup_name)
-                dist=Util.LevenshteinDistance(original_name.lower(), candidate_name)
+                dist = Util.LevenshteinDistance(original_name.lower(), candidate_name)
                 lcs = len(Util.LongestCommonSubstring(original_name.lower(), candidate_name))
-                score = -dist / float(len(original_name)) + 5*lcs/float(len(search_name))
+                score = -dist / float(len(original_name)) + 5 * lcs / float(len(search_name))
                 if year != None and yearx.find(year) >= 0:
-                    score = score + 0.85
-                elif year!=None and abs(int(yearx)-int(year))<2:
-                    score = score + 0.5
+                    score = score
+                elif year != None and abs(int(yearx) - int(year)) < 2:
+                    score = score * 0.5
                 else:
-                    score = score - 0.8
+                    score = score * 0.1
                 score += 0.001 * n
                 if n > 0:
                     n = n - 1
                 local_results.append(
                     [score,
                      {'search_url': search_url, 'score': score, 'candidate_name': candidate_name, 'link': link,
-                      'year': yearx, 'dist': dist, 'lcs':lcs}])
+                      'year': yearx, 'dist': dist, 'lcs': lcs}])
                 #print x.text_content(),x_link.text_content(),candidate_name
             for x in h.xpath('//div[@id="search-films"]//ul[@class="films others"]/li'):
                 #print x.text_content(),candidate_name
                 x_link = x.xpath('.//a[contains(@class,"film")]')[0]
                 link = x_link.get('href')
-                candidate_name=String.StripDiacritics(x_link.text)
+                candidate_name = String.StripDiacritics(x_link.text)
                 x_alt = x.xpath('.//span[@class="search-name"]')
-                if len(x_alt)>0:
-                    candidate_name=String.StripDiacritics(x_alt[0].text.replace('(','').replace(')',''))
-                x_span=x.xpath('.//span[@class="film-year"]')[0]
-                yearx=x_span.text
+                if len(x_alt) > 0:
+                    candidate_name = String.StripDiacritics(x_alt[0].text.replace('(', '').replace(')', ''))
+                x_span = x.xpath('.//span[@class="film-year"]')[0]
+                yearx = x_span.text
                 if yearx[-1] == ')':
                     yearx = yearx[:-1]
                 if yearx[0] == '(':
                     yearx = yearx[1:]
-                dist=Util.LevenshteinDistance(original_name.lower(), candidate_name)
+                dist = Util.LevenshteinDistance(original_name.lower(), candidate_name)
                 lcs = len(Util.LongestCommonSubstring(original_name.lower(), candidate_name))
-                score = -dist / float(len(original_name)) + 5*lcs/float(len(search_name))
+                score = -dist / float(len(original_name)) + 5 * lcs / float(len(search_name))
                 if year != None and yearx.find(year) >= 0:
-                    score = score + 0.85
-                elif year!=None and abs(int(yearx)-int(year))<2:
-                    score = score + 0.5
+                    score = score
+                elif year != None and abs(int(yearx) - int(year)) < 2:
+                    score = score * 0.5
                 else:
-                    score = score - 0.8
+                    score = score * 0.1
                 score += 0.001 * n
                 if n > 0:
                     n = n - 1
                 local_results.append(
                     [score, {'search_url': search_url, 'candidate_name': candidate_name, 'link': link,
-                             'year': yearx, 'score':score, 'dist': dist, 'lcs':lcs}])
+                             'year': yearx, 'score': score, 'dist': dist, 'lcs': lcs}])
         except:
             print "Got exception on lookup!"
         local_results.sort(reverse=True)
@@ -154,22 +163,23 @@ class CSFDAgent(Agent.Movies):
     def get_movie_info(self, csfdid):
         #norm_name, year = fix_title(String.StripDiacritics(name))
         print csfdid[5:]
-        request_url="http://www.csfd.cz/film/" + csfdid[5:]
-        data=HTTP.Request(request_url).content
+        request_url = "http://www.csfd.cz/film/" + csfdid[5:]
+        data = HTTP.Request(request_url).content
 
-        h=HTML.ElementFromString(data)
+        h = HTML.ElementFromString(data)
         result = {}
 
         #lets try to get the name
         try:
-            result['title']=String.StripDiacritics(h.xpath('//div[@id="profile"]//div[@class="info"]//h1')[0].text_content()).strip()
+            result['title'] = String.StripDiacritics(
+                h.xpath('//div[@id="profile"]//div[@class="info"]//h1')[0].text_content()).strip()
         except:
             print "Failed to parse title"
 
         #lets try to get the origin and year
         try:
-
-            origin=h.xpath('//div[@id="profile"]//div[@class="content"]//div[@class="info"]//p[@class="origin"]')[0].text
+            origin = h.xpath('//div[@id="profile"]//div[@class="content"]//div[@class="info"]//p[@class="origin"]')[
+                     0].text
             if origin == None:
                 pass
             else:
@@ -195,7 +205,7 @@ class CSFDAgent(Agent.Movies):
 
         #lets get votes
         try:
-            votes=h.xpath('//div[@id="ratings"]//div[@class="count"]')[0].text_content().split('(')[1].split(')')[0]
+            votes = h.xpath('//div[@id="ratings"]//div[@class="count"]')[0].text_content().split('(')[1].split(')')[0]
             if votes == None:
                 pass
             else:
@@ -207,7 +217,7 @@ class CSFDAgent(Agent.Movies):
         #lets get summary
         # //*[@id="plots"]/div[2]/ul/li/div[2]/text()[1]
         try:
-            plot=h.xpath('//div[@id="plots"]//div[@class="content"]//div')[0].text_content()
+            plot = h.xpath('//div[@id="plots"]//div[@class="content"]//div')[0].text_content()
             if plot == None:
                 pass
             else:
@@ -217,7 +227,8 @@ class CSFDAgent(Agent.Movies):
 
         #lets get the genres
         try:
-            genres=String.StripDiacritics(h.xpath('//div[@id="profile"]//div[@class="info"]//p[@class="genre"]')[0].text_content()).split('/')
+            genres = String.StripDiacritics(
+                h.xpath('//div[@id="profile"]//div[@class="info"]//p[@class="genre"]')[0].text_content()).split('/')
             result['genres'] = []
             for genre in genres:
                 genre = genre.strip()
@@ -229,8 +240,8 @@ class CSFDAgent(Agent.Movies):
         try:
             for x in h.xpath('//div[@id="profile"]//div[@class="info"]//div'):
                 #print x.text_content()
-                section=String.StripDiacritics(x.xpath('.//h4')[0].text_content()).strip().lower()[:-1]
-                text=String.StripDiacritics(x.xpath('.//span')[0].text_content().strip())
+                section = String.StripDiacritics(x.xpath('.//h4')[0].text_content()).strip().lower()[:-1]
+                text = String.StripDiacritics(x.xpath('.//span')[0].text_content().strip())
                 if section == 'rezie':
                     #directors
                     result['directors'] = []
@@ -252,29 +263,29 @@ class CSFDAgent(Agent.Movies):
         #lets try to get the images
         try:
             #find out if we have images
-            photos_link="http://www.csfd.cz/"+h.xpath('//li[@class="photos"]//a')[0].get('href')
+            photos_link = "http://www.csfd.cz/" + h.xpath('//li[@class="photos"]//a')[0].get('href')
             #lets get this page
             print photos_link
-            data2=HTTP.Request(photos_link,headers={'Referer':request_url}).content
+            data2 = HTTP.Request(photos_link, headers={'Referer': request_url}).content
             print photos_link
-            h2=HTML.ElementFromString(data2)
+            h2 = HTML.ElementFromString(data2)
             result['artwork'] = []
             print "what"
             for photo in h2.xpath('//div[@class="photo"]'):
-                z=""
-                for x,y in photo.items():
-                    z+=(x+y)
-                m=re.search(re_photo,z)
+                z = ""
+                for x, y in photo.items():
+                    z += (x + y)
+                m = re.search(re_photo, z)
                 if m:
                     if 'artwork' not in result:
-                        result['artwork']=[]
-                    result['artwork'].append("http://img.csfd.cz"+m.group(1))
+                        result['artwork'] = []
+                    result['artwork'].append("http://img.csfd.cz" + m.group(1))
         except:
             print "Failed to get artwork"
 
         #lets try to pull some poster
         try:
-            result['poster']=h.xpath('//div[@id="profile"]//div[@class="image"]//img')[0].get('src')
+            result['poster'] = h.xpath('//div[@id="profile"]//div[@class="image"]//img')[0].get('src')
         except:
             print "Failed to get poster"
 
@@ -324,7 +335,14 @@ class CSFDAgent(Agent.Movies):
 
     def search(self, results, media, lang, manual=False):
         print "Calling search"
-        d = self.name_to_url(media.name)
+        filename = os.path.basename(String.Unquote(media.filename))
+        if filename.lower() == "video_ts.ifo" or filename.lower()=="video_ts":
+            unquoted=String.Unquote(media.filename)
+            p = unquoted.split(os.path.sep)
+            if len(p)>=3:
+                filename=p[-3]
+        print "FN2", filename
+        d = self.name_to_url(media.name, filename)
         if d != None:
             print d
             if -d['score'] < 0.3:
@@ -362,10 +380,11 @@ def fix_title(s):
     s = s.split('+')
     stops = (
         'AC3', 'ac3', 'DVDRiP', 'dvd', 'dvdrip', 'xvid', 'divx', 'REPACK', 'RECUT', 'EXTENDED', 'Limited', 'RETAIL',
-        'RETAiL', 'screener', 'r5', 'proper', 'nfo', 'ws', '1080p', '720p', 'hdtv', 'avi', 'AVI', 'Avi', 'mkv', 'MKV',
-        'Mkv','HDTV')
+        'RETAiL', 'screener', 'r5', 'proper', 'nfo', 'ws', '1080p', '720p','480p','560p', 'hdtv', 'avi', 'AVI', 'Avi', 'mkv', 'MKV',
+        'Mkv', 'HDTV')
     removes = (
-    'Disney', 'Disneys', 'Platinum', 'Edition', 'iTALiAN', 'REMASTERED', 'cast', 'Cast', 'kinobox', 'Kinobox','Drama','drama','cz','Cz','CZ','cZ')
+        'Disney', 'Disneys', 'Platinum', 'Edition', 'iTALiAN', 'REMASTERED', 'cast', 'Cast', 'kinobox', 'Kinobox',
+        'Drama', 'drama', 'cz', 'Cz', 'CZ', 'cZ')
     output = []
     for tok in s:
         m_stop = None
