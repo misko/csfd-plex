@@ -1,10 +1,12 @@
 import datetime, re, time, unicodedata, hashlib, urlparse, types, urllib, httplib, os
 
 re_years = (
-    "^(19\d\d)[+]", "^(20\d\d)[+]", "[+](19\d\d)$", "[+](20\d\d)$", "[+](19\d\d)[+]", "[+](20\d\d)[+]", "\[([12]\d\d\d)\]","\(([12]\d\d\d)\)")
+    "^(19\d\d)[+]", "^(20\d\d)[+]", "[+](19\d\d)$", "[+](20\d\d)$", "[+](19\d\d)[+]", "[+](20\d\d)[+]",
+    "\[([12]\d\d\d)\]", "\(([12]\d\d\d)\)")
 re_csfdid = ("^/film/(\d+)\S+")
 re_duration = ("([0-9]+)\s+min")
 re_photo = ("(/photos/filmy/\S+.jpg)")
+re_csfd_title_tag = ("(\([^(]*\))")
 
 def Start():
     HTTP.CacheTime = CACHE_1HOUR * 4
@@ -30,7 +32,7 @@ class CSFDAgent(Agent.Movies):
 
     def name_to_url(self, search_name, filename, original_name=None, depth=0):
         norm_name, year = fix_title(String.StripDiacritics(search_name))
-        if filename!=None:
+        if filename != None:
             print "FN:" + filename
             file_name, file_year = fix_title(String.StripDiacritics(filename))
             if year == None:
@@ -67,7 +69,10 @@ class CSFDAgent(Agent.Movies):
             try:
                 title = String.StripDiacritics(
                     h.xpath('//div[@id="profile"]//div[@class="info"]//h1')[0].text_content()).strip()
-                new_result = self.name_to_url(title + " " + original_name, filename, original_name=original_name, depth=1)
+                new_title = title + " " + original_name
+                if year != None:
+                    new_title = new_title + " " + year
+                new_result = self.name_to_url(new_title, filename, original_name=original_name, depth=1)
                 if new_result != None:
                     local_results.append([new_result['score'], new_result])
                 else:
@@ -85,7 +90,7 @@ class CSFDAgent(Agent.Movies):
                 #print "found"
                 x_link = x.xpath('.//a[contains(@class,"film")]')[0]
                 link = x_link.get('href')
-                candidate_name,y = fix_title(String.StripDiacritics(x_link.text))
+                candidate_name, y = fix_title(String.StripDiacritics(x_link.text))
                 x_alt = x.xpath('.//span[@class="search-name"]')
                 if len(x_alt) > 0:
                     candidate_name = String.StripDiacritics(x_alt[0].text.replace('(', '').replace(')', ''))
@@ -95,13 +100,13 @@ class CSFDAgent(Agent.Movies):
                 #score = score_strs(name, lookup_name)
                 dist = Util.LevenshteinDistance(original_name.lower(), candidate_name)
                 lcs = len(Util.LongestCommonSubstring(original_name.lower(), candidate_name))
-                score = -dist / float(len(original_name)) + 5 * lcs / float(len(search_name))
+                score = -dist / float(max(len(candidate_name), len(original_name))) + 5 * lcs / float(len(search_name))
                 if year != None and yearx.find(year) >= 0:
                     score = score
                 elif year != None and abs(int(yearx) - int(year)) < 2:
-                    score = score * 0.5
-                else:
-                    score = score * 0.1
+                    score = score - 2
+                elif year != None:
+                    score = score - 5
                 score += 0.001 * n
                 if n > 0:
                     n = n - 1
@@ -114,7 +119,7 @@ class CSFDAgent(Agent.Movies):
                 #print x.text_content(),candidate_name
                 x_link = x.xpath('.//a[contains(@class,"film")]')[0]
                 link = x_link.get('href')
-                candidate_name,y = fix_title(String.StripDiacritics(x_link.text))
+                candidate_name, y = fix_title(String.StripDiacritics(x_link.text))
                 x_alt = x.xpath('.//span[@class="search-name"]')
                 if len(x_alt) > 0:
                     candidate_name = String.StripDiacritics(x_alt[0].text.replace('(', '').replace(')', ''))
@@ -126,13 +131,13 @@ class CSFDAgent(Agent.Movies):
                     yearx = yearx[1:]
                 dist = Util.LevenshteinDistance(original_name.lower(), candidate_name)
                 lcs = len(Util.LongestCommonSubstring(original_name.lower(), candidate_name))
-                score = -dist / float(len(original_name)) + 5 * lcs / float(len(search_name))
+                score = -dist / float(max(len(candidate_name), len(original_name))) + 5 * lcs / float(len(search_name))
                 if year != None and yearx.find(year) >= 0:
                     score = score
                 elif year != None and abs(int(yearx) - int(year)) < 2:
-                    score = score * 0.5
-                else:
-                    score = score * 0.1
+                    score = score - 2
+                elif year != None:
+                    score = score - 5
                 score += 0.001 * n
                 if n > 0:
                     n = n - 1
@@ -173,6 +178,15 @@ class CSFDAgent(Agent.Movies):
         try:
             result['title'] = String.StripDiacritics(
                 h.xpath('//div[@id="profile"]//div[@class="info"]//h1')[0].text_content()).strip()
+            if "(TV serial)" in result['title']:
+                result['type'] = 'TV'
+            elif "(TV film)" in result['title']:
+                result['type'] = 'TV MOVIE'
+            else:
+                result['type'] = 'MOVIE'
+            m = re.search(re_csfd_title_tag, result['title'])
+            if m:
+                result['title'] = result['title'].replace(m.group(1), '').strip()
         except:
             print "Failed to parse title"
 
@@ -335,14 +349,14 @@ class CSFDAgent(Agent.Movies):
 
     def search(self, results, media, lang, manual=False):
         print "Calling search"
-        filename=None
+        filename = None
         try:
             filename = os.path.basename(String.Unquote(media.filename))
-            if filename.lower() == "video_ts.ifo" or filename.lower()=="video_ts":
-                unquoted=String.Unquote(media.filename)
+            if filename.lower() == "video_ts.ifo" or filename.lower() == "video_ts":
+                unquoted = String.Unquote(media.filename)
                 p = unquoted.split(os.path.sep)
-                if len(p)>=3:
-                    filename=p[-3]
+                if len(p) >= 3:
+                    filename = p[-3]
         except:
             pass
         d = self.name_to_url(media.name, filename)
@@ -383,7 +397,8 @@ def fix_title(s):
     s = s.split('+')
     stops = (
         'AC3', 'ac3', 'DVDRiP', 'dvd', 'dvdrip', 'xvid', 'divx', 'REPACK', 'RECUT', 'EXTENDED', 'Limited', 'RETAIL',
-        'RETAiL', 'screener', 'r5', 'proper', 'nfo', 'ws', '1080p', '720p','480p','560p', 'hdtv', 'avi', 'AVI', 'Avi', 'mkv', 'MKV',
+        'RETAiL', 'screener', 'r5', 'proper', 'nfo', 'ws', '1080p', '720p', '480p', '560p', 'hdtv', 'avi', 'AVI', 'Avi',
+        'mkv', 'MKV',
         'Mkv', 'HDTV')
     removes = (
         'Disney', 'Disneys', 'Platinum', 'Edition', 'iTALiAN', 'REMASTERED', 'cast', 'Cast', 'kinobox', 'Kinobox',

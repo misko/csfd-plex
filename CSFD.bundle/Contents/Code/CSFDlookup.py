@@ -8,6 +8,7 @@ re_years = (
 re_csfdid = ("^/film/(\d+)\S+")
 re_duration = ("([0-9]+)\s+min")
 re_photo = ("(/photos/filmy/\S+.jpg)")
+re_csfd_title_tag = ("(\([^(]*\))")
 
 
 # From http://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Longest_common_substring#Python
@@ -165,7 +166,10 @@ def name_to_url(search_name, filename, original_name=None, depth=0):
     if depth == 0:
         try:
             title = StripDiacritics(h.xpath('//div[@id="profile"]//div[@class="info"]//h1')[0].text_content()).strip()
-            new_result = name_to_url(title + " " + original_name, filename, original_name=original_name, depth=1)
+            new_title=title+" " + original_name
+            if year!=None:
+                new_title= new_title + " " + year
+            new_result = name_to_url(new_title, filename, original_name=original_name, depth=1)
             if new_result != None:
                 local_results.append([new_result['score'], new_result])
             else:
@@ -177,7 +181,6 @@ def name_to_url(search_name, filename, original_name=None, depth=0):
             pass
 
     n = 3
-
     #try:
     for x in h.xpath('//div[@id="search-films"]//ul[@class="ui-image-list js-odd-even"]/li'):
         #print "found"
@@ -193,21 +196,23 @@ def name_to_url(search_name, filename, original_name=None, depth=0):
         #score = score_strs(name, lookup_name)
         dist = levenshtein_distance(original_name.lower(), candidate_name)
         lcs = len(longest_common_substring(original_name.lower(), candidate_name))
-        score = -dist / float(len(original_name)) + 5 * lcs / float(len(search_name))
-        if year != None and yearx.find(year) >= 0:
-            score = score
-        elif year != None and abs(int(yearx) - int(year)) < 2:
-            score = score * 0.7
-        else:
-            score = score * 0.1
+        score = -dist / float(max(len(candidate_name),len(original_name))) + 5 * lcs / float(len(search_name))
         score += 0.001 * n
         if n > 0:
             n = n - 1
+
+        if year != None and yearx.find(year) >= 0:
+            score = score
+        elif year != None and abs(int(yearx) - int(year)) < 2:
+            score = score - 2
+        elif year != None:
+            score = score - 5
         local_results.append(
             [score,
              {'search_url': search_url, 'score': score, 'candidate_name': candidate_name, 'link': link,
               'year': yearx, 'dist': dist, 'lcs': lcs}])
         #print x.text_content(),x_link.text_content(),candidate_name
+        #print local_results[-1]
     for x in h.xpath('//div[@id="search-films"]//ul[@class="films others"]/li'):
         #print x.text_content(),candidate_name
         x_link = x.xpath('.//a[contains(@class,"film")]')[0]
@@ -225,14 +230,14 @@ def name_to_url(search_name, filename, original_name=None, depth=0):
 
         dist = levenshtein_distance(original_name.lower(), candidate_name)
         lcs = len(longest_common_substring(original_name.lower(), candidate_name))
-        score = -dist / float(len(original_name)) + 5 * lcs / float(len(search_name))
+        score = -dist / float(max(len(candidate_name),len(original_name))) + 5 * lcs / float(len(search_name))
+        score += 0.001 * n
         if year != None and yearx.find(year) >= 0:
             score = score
         elif year != None and abs(int(yearx) - int(year)) < 2:
-            score = score * 0.7
-        else:
-            score = score * 0.1
-        score += 0.001 * n
+            score = score - 2
+        elif year != None:
+            score = score - 5
         if n > 0:
             n = n - 1
         local_results.append(
@@ -277,12 +282,13 @@ def get_movie_info(csfdid):
             h.xpath('//div[@id="profile"]//div[@class="info"]//h1')[0].text_content()).strip()
         if "(TV serial)" in result['title']:
             result['type'] = 'TV'
-            result['title'] = result['title'].replace('(TV serial)', '').strip()
         elif "(TV film)" in result['title']:
             result['type'] = 'TV MOVIE'
-            result['title'] = result['title'].replace('(TV film)', '').strip()
         else:
             result['type'] = 'MOVIE'
+        m=re.search(re_csfd_title_tag,result['title'])
+        if m:
+            result['title']=result['title'].replace(m.group(1),'').strip()
     except:
         print >> sys.stderr, "Failed to parse title"
 
