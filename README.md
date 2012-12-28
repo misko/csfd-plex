@@ -5,9 +5,7 @@ A plex metadata agent for CSFD (http://csfd.cz).
 
 ##Known issues
 * Trouble with TV series (working on it)
-* Recognizing some movies automatically (underlying media scraper passes in wrong name)
-
-Can be corrected by manually specifying name of movie, (don't be shy to include the year!)
+* Recognizing some movies automatically (underlying media scraper passes in wrong name). Can be corrected by manually specifying name of movie, (don't be shy to include the year!)
 
 ##Install
 To install extract the repository (zip) into the Plugins folder on the plex media server:
