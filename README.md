@@ -14,3 +14,17 @@ C:\Documents and Settings\**yourusername**\Local Settings\Application Data\Plex 
 
 * On Mac/OSX extract to:
 ~/Library/Application Support/Plex Media Server/Plug-ins/
+
+##Directory structure
+After extraction things should look like,
+
+* On linux:
+/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/
+/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents
+/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/DefaultPrefs.json
+/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Code
+/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Code/__init__.py
+/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Resources
+/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Resources/icon-default.png
+/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Resources/attribution.png
+/var/lib/plexmediaserver/Library/Application Support/Plex Media Server/Plug-ins/CSFD.bundle/Contents/Info.plist
