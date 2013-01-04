@@ -6,7 +6,7 @@ re_years = (
 re_csfdid = ("^/film/(\d+)\S+")
 re_duration = ("([0-9]+)\s+min")
 re_photo = ("(/photos/filmy/\S+.jpg)")
-re_csfd_title_tag = ("(\([^(]*\))")
+re_csfd_title_tag = ("(\([^)]*\))")
 
 def Start():
     HTTP.CacheTime = CACHE_1HOUR * 4
@@ -184,9 +184,11 @@ class CSFDAgent(Agent.Movies):
                 result['type'] = 'TV MOVIE'
             else:
                 result['type'] = 'MOVIE'
-            m = re.search(re_csfd_title_tag, result['title'])
-            if m:
-                result['title'] = result['title'].replace(m.group(1), '').strip()
+            m = True
+            while m:
+                m = re.search(re_csfd_title_tag, result['title'])
+                if m:
+                    result['title'] = result['title'].replace(m.group(1), '').strip()
         except:
             print "Failed to parse title"
 

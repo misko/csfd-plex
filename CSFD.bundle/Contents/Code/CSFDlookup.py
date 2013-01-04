@@ -8,8 +8,15 @@ re_years = (
 re_csfdid = ("^/film/(\d+)\S+")
 re_duration = ("([0-9]+)\s+min")
 re_photo = ("(/photos/filmy/\S+.jpg)")
-re_csfd_title_tag = ("(\([^(]*\))")
+re_csfd_title_tag = ("(\([^)]*\))")
 
+def get_size(start_path = '.'):
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(start_path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            total_size += os.path.getsize(fp)
+    return total_size
 
 # From http://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Longest_common_substring#Python
 def longest_common_substring(first, second):
@@ -221,12 +228,15 @@ def name_to_url(search_name, filename, original_name=None, depth=0):
         x_alt = x.xpath('.//span[@class="search-name"]')
         if len(x_alt) > 0:
             candidate_name = StripDiacritics(x_alt[0].text.replace('(', '').replace(')', ''))
-        x_span = x.xpath('.//span[@class="film-year"]')[0]
-        yearx = x_span.text
-        if yearx[-1] == ')':
-            yearx = yearx[:-1]
-        if yearx[0] == '(':
-            yearx = yearx[1:]
+        try:
+            x_span = x.xpath('.//span[@class="film-year"]')[0]
+            yearx = x_span.text
+            if yearx[-1] == ')':
+                yearx = yearx[:-1]
+            if yearx[0] == '(':
+                yearx = yearx[1:]
+        except:
+            yearx="0"
 
         dist = levenshtein_distance(original_name.lower(), candidate_name)
         lcs = len(longest_common_substring(original_name.lower(), candidate_name))
@@ -286,9 +296,11 @@ def get_movie_info(csfdid):
             result['type'] = 'TV MOVIE'
         else:
             result['type'] = 'MOVIE'
-        m=re.search(re_csfd_title_tag,result['title'])
-        if m:
-            result['title']=result['title'].replace(m.group(1),'').strip()
+        m=True
+        while m:
+            m=re.search(re_csfd_title_tag,result['title'])
+            if m:
+                result['title']=result['title'].replace(m.group(1),'').strip()
     except:
         print >> sys.stderr, "Failed to parse title"
 
@@ -413,7 +425,8 @@ def usage():
     print "-t title - used to search csfd, if year is in title script will try to extract it"
     print "-y year - the year of the release, preferably within 1 year of what is says on csfd"
     print "-m movies_root - if provided with filename and the result of lookup is movie, print mkdir and mv commands"
-    print "-m tv_root - if provided with filename and the result of lookup is tv, print mkdir and mv commands"
+    print "-v tv_root - if provided with filename and the result of lookup is tv, print mkdir and mv commands"
+    print "-x - print output in xls format"
     print "* at least, filename or title must be provided"
     print "examples:"
     print "%s -t 'Dedictvi aneb Kurvahosigutntag'" % sys.argv[0]
@@ -428,6 +441,7 @@ if __name__ == '__main__':
     year = ""
     root_movies = ""
     root_tv = ""
+    xls=False
     x = 1
     while x < len(sys.argv):
         if sys.argv[x] in "-f":
@@ -447,6 +461,9 @@ if __name__ == '__main__':
             x = x + 2
         elif sys.argv[x].lower() in ("-h", "--help"):
             usage()
+        elif sys.argv[x].lower() in ('-x'):
+            xls=True
+            x = x + 1
         else:
             x = x + 1
     if (title != "" or filename != ""):
@@ -458,6 +475,7 @@ if __name__ == '__main__':
         title = StripDiacritics(title)
         print >> sys.stderr, title, year
 
+        original_filename=filename
         x_filename = os.path.basename(urllib.unquote(filename))
         if x_filename.lower() == "video_ts.ifo" or x_filename.lower() == "video_ts":
             unquoted=StripDiacritics(urllib.unquote(filename))
@@ -469,23 +487,63 @@ if __name__ == '__main__':
             #print d
             if -d['score'] < 0.3:
                 x = get_movie_info(d['csfdid'])
-                print "#" + str(x)
-                root = ""
-                if x['type'] == "MOVIE" or x['type']=="TV MOVIE":
-                    root = root_movies
+                if xls:
+                    output_string=""
+                    #first lets get the title
+                    if 'title' in x:
+                        output_string+=x['title']+"\t"
+                    else:
+                        output_string+="\t"
+                    #lets get the origin
+                    if 'origin' in x:
+                        output_string+=x['origin'].split(',')[0]+"\t"
+                    else:
+                        output_string+="\t"
+                    #lets include the genre
+                    if 'genres' in x:
+                        output_string+=",".join(x['genres'])+"\t"
+                    else:
+                        output_string+="\t"
+                    #lest get the year
+                    if 'year' in x:
+                        output_string+=x['year']+"\t"
+                    else:
+                        output_string+="\t"
+                    #lets include the rating
+                    if 'rating' in x:
+                        output_string+=x['rating']+"\t"
+                    else:
+                        output_string+="\t"
+                    #lets include the type
+                    if 'type' in x:
+                        output_string+=x['type']+"\t"
+                    else:
+                        output_string+="\t"
+                    #lets include the filename
+                    if original_filename!="":
+                        mbytes=get_size(start_path=original_filename)/(1024*1024)
+                        output_string+=original_filename+"\t"+str(mbytes)+"\t"
+                    else:
+                        output_string+="\t\t"
+                    print output_string
                 else:
-                    root = root_tv
-                if filename != "" and root != "":
-                    try:
-                        dest_folder = ""
-                        if x['type'] == "MOVIE" or x['type']=="TV MOVIE":
-                            dest_folder = root + "/" + str(x['year']) + "/" + str(x['title']) + "/"
-                        else:
-                            dest_folder = root + "/" + str(x['title']) + "/"
-                        print "mkdir -p \'" + dest_folder + "\'"
-                        print "mv -v \'" + filename + "\' \'" + dest_folder + "\'"
-                    except:
-                        pass
+                    print "#" + str(x)
+                    root = ""
+                    if x['type'] == "MOVIE" or x['type']=="TV MOVIE":
+                        root = root_movies
+                    else:
+                        root = root_tv
+                    if filename != "" and root != "":
+                        try:
+                            dest_folder = ""
+                            if x['type'] == "MOVIE" or x['type']=="TV MOVIE":
+                                dest_folder = root + "/" + str(x['year']) + "/" + str(x['title']) + "/"
+                            else:
+                                dest_folder = root + "/" + str(x['title']) + "/"
+                            print "mkdir -p \'" + dest_folder + "\'"
+                            print "mv -v \'" + filename + "\' \'" + dest_folder + "\'"
+                        except:
+                            pass
             else:
                 #print "did not find a good match"
                 pass
