@@ -301,7 +301,7 @@ class CSFDAgent(Agent.Movies):
 
         #lets try to pull some poster
         try:
-            result['poster'] = h.xpath('//div[@id="profile"]//div[@class="image"]//img')[0].get('src')
+            result['poster'] = "http:" + h.xpath('//div[@id="profile"]//div[@class="image"]//img')[0].get('src')
         except:
             print "Failed to get poster"
 

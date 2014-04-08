@@ -412,7 +412,7 @@ def get_movie_info(csfdid):
 
     #lets try to pull some poster
     try:
-        result['poster'] = h.xpath('//div[@id="profile"]//div[@class="image"]//img')[0].get('src')
+        result['poster'] = "http:" + h.xpath('//div[@id="profile"]//div[@class="image"]//img')[0].get('src')
     except:
         print >> sys.stderr, "Failed to get poster"
 
